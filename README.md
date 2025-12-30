@@ -34,7 +34,7 @@ python analysis.py
 ### 3. Ejecutar interfaz web
 
 ```bash
-streamlit run app_v31.py
+streamlit run app.py
 
 # Abre: http://localhost:8501
 ```
@@ -47,7 +47,62 @@ streamlit run app_v31.py
 
 ---
 
-## 📁 Estructura de Archivos
+## 🎯 Logros Principales
+
+### Mejoras vs Versión Anterior
+
+```
+Precisión:      345% error  →  7.6% error    ✅ Mejora 96.9%
+Modelo:         Hardcoded   →  Data-driven   ✅ ML basado en datos
+Validación:     Ninguna     →  Cross-val     ✅ Científico
+Explicabilidad: No          →  Sí (R², coefs) ✅ Transparente
+Reporte:        2 slides    →  6 + gráficos  ✅ Profesional
+```
+
+### Visualización del Impacto
+
+```
+MODELO ANTIGUO (v3.0):        MODELO NUEVO (v3.1):
+┌─────────────────────┐       ┌──────────────────────┐
+│ SPW × 6.5 + ...     │       │ Ecuación Entrenada:  │
+│ = 346.7 segundos    │       │ Tiempo = 131.63 +    │
+│ ❌ Real: 187s       │       │   0.2548·SPW +       │
+│ Error: +185%        │       │   0.2975·Peso +      │
+└─────────────────────┘       │   0.0151·ANCHO       │
+                              │ = 172.82 segundos    │
+                              │ ✓ Real: 187s         │
+                              │ Error: -7.6%         │
+                              └──────────────────────┘
+```
+
+---
+
+## 📊 Análisis Visual de Sensibilidad
+
+### Impacto de Variables
+
+```
+Variable      │ Coeficiente │ Importancia │ Impacto
+──────────────┼─────────────┼─────────────┼──────────────
+Peso          │   0.2975    │ ████████████│ 100% (CLAVE)
+SPW           │   0.2548    │ ███████████ │ 85.7%
+ANCHO_ASSY    │   0.0151    │ █           │ 5.1%
+```
+
+### Ejemplo de Sensibilidad
+
+```
+SPW = 100 → Tiempo: 169.10s (BASE)
+
+SPW -10%:  90 → 166.53s  (-2.57s) ↓
+SPW +10%: 110 → 171.68s  (+2.57s) ↑
+
+Conclusión: Relación lineal predecible
+```
+
+---
+
+## 4. Generar ofertas
 
 ```
 ├── app.py                           v3.0 (Original)
