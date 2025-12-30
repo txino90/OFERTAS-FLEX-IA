@@ -1,93 +1,68 @@
 import streamlit as st
 import pandas as pd
+import os
+from logic import calcular_ciclo_completo, calcular_capacidad_y_mod
+from report_gen import generar_reporte_pptx
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="OFERTAS FLEX IA 1.3.2", layout="wide")
-st.title("🚗 FACTORY 21 - Lógica de Procesos Avanzada")
+st.set_page_config(page_title="Gestamp Factory 21 v3.0", layout="wide")
+DB_FILE = "base_datos_experta.csv"
+LOGO_TU_EMPRESA = "https://cdn-icons-png.flaticon.com/512/2823/2823528.png"
 
-# --- INPUTS EN SIDEBAR ---
-st.sidebar.header("📥 Datos de Entrada")
+# --- CARGA DE DATOS SEGURA (Blindada contra KeyErrors) ---
+def obtener_factor_ia():
+    if os.path.exists(DB_FILE):
+        try:
+            df_temp = pd.read_csv(DB_FILE)
+            if not df_temp.empty and "Factor_Calculado" in df_temp.columns:
+                return df_temp["Factor_Calculado"].mean()
+        except Exception:
+            pass # Si el archivo está corrupto, ignoramos y devolvemos 1.0
+    return 1.0
 
-# Tecnologías Robot Manipulador
-tuercas = st.sidebar.number_input("Nº Tuercas Soldadas", value=0)
-tuckers = st.sidebar.number_input("Nº Tuckers", value=0)
-marcado = st.sidebar.checkbox("¿Lleva Marcado Láser?", value=False)
+factor_ia = obtener_factor_ia()
 
-# Tecnologías Robots Soldadores
-spw = st.sidebar.number_input("Puntos SPW", value=0)
-mastico_mm = st.sidebar.number_input("Mastico (mm)", value=0)
-tox = st.sidebar.number_input("Nº Tox (Clinchado)", value=0)
-roll_hemming_mm = st.sidebar.number_input("Roll Hemming (mm)", value=0)
+# --- INTERFAZ ---
+st.image(LOGO_TU_EMPRESA, width=80)
+st.title("Gestamp - Estimador Modular 3.0")
 
-# --- MOTOR DE CÁLCULO (Lógica Híbrida) ---
+col1, col2 = st.columns(2)
+with col1:
+    st.subheader("Configuración Técnica")
+    proyecto = st.text_input("Nombre Proyecto", "Nuevo F21")
+    oem = st.selectbox("OEM", ["Toyota", "VW", "Stellantis", "Ford", "BMW", "Mercedes"])
+    img_p = st.file_uploader("Foto Producto", type=["jpg", "png"])
+    spw = st.number_input("Puntos SPW", value=40)
+    mastico = st.number_input("Mastico (mm)", value=0)
+    tox = st.number_input("Nº Tox", value=0)
+    tuercas = st.number_input("Tuercas", value=0)
+    tuckers = st.number_input("Tuckers", value=0)
+    marcado = st.checkbox("Marcado Láser")
 
-def calcular_tiempo_v132(tuercas, tuckers, marcado, spw, mastico, tox, rh):
-    # 1. TRABAJO DEL ROBOT MANIPULADOR (Robot 4)
-    # ------------------------------------------
-    t_manipulacion_base = 16.0
-    t_tuercas = tuercas * 8.0
-    t_tuckers = tuckers * 7.0
-    t_marcado = 14.0 if marcado else 0.0 # 10s fijo + 2s entrada + 2s salida
+with col2:
+    st.subheader("Capacidad y Logística")
+    dias = st.number_input("Días/Año", value=220)
+    turnos = st.number_input("Turnos/Día", value=2)
+    horas = st.number_input("Horas/Turno", value=7.5)
+    v1 = st.number_input("Volumen Año 1", value=100000)
+    p_kit = st.number_input("Piezas Kit", value=1)
+    p_rack = st.number_input("Piezas Rack", value=1)
+    peso = st.number_input("Peso (kg)", value=5.0)
+
+if st.button("🚀 GENERAR ANÁLISIS"):
+    # 1. Llamada a Lógica
+    res_f1 = calcular_ciclo_completo(spw, mastico, tox, 0, tuercas, tuckers, marcado, factor_ia)
+    t_man, n_mod, sat, cap_max, res_anual = calcular_capacidad_y_mod(res_f1['t_ciclo'], dias, turnos, horas, [v1], p_kit, p_rack, peso)
     
-    t_total_manipulador = t_manipulacion_base + t_tuercas + t_tuckers + t_marcado
-
-    # 2. TRABAJO DE LOS ROBOTS SOLDADORES (Robots 1, 2, 3)
-    # ---------------------------------------------------
-    # Calculamos tiempo de proceso puro
-    t_spw_puro = spw * (3.5 + 3.0) # Tiempo punto + vuelo
-    t_mastico_puro = mastico / 10.0
-    t_tox_puro = tox * 5.0
-    t_rh_puro = rh / 10.0
+    # 2. Mostrar Resultados
+    st.success(f"Tiempo Ciclo: {res_f1['t_ciclo']:.2f}s | MOD: {n_mod} | Líneas: {res_anual[0]['Instalaciones']}")
     
-    t_proceso_total = t_spw_puro + t_mastico_puro + t_tox_puro + t_rh_puro
-    
-    # Aplicamos penalizaciones por cambios de herramienta o procesos no solapables
-    t_penalizaciones = 0
-    if mastico > 0:
-        t_penalizaciones += 16.0 + 25.0 # Cogida/dejada extra + cambio herramienta
-    if tox > 0:
-        t_penalizaciones += 25.0 # Cambio herramienta
-        
-    # Balanceo entre 3 robots (eficiencia 80%)
-    robots_efectivos = 3 * 0.8
-    t_total_soldadores = (t_proceso_total / robots_efectivos) + t_penalizaciones
-
-    # 3. RESULTADO FINAL (El cuello de botella)
-    # En automoción, el tiempo de ciclo es el que más tarda de los dos grupos
-    tiempo_ciclo_final = max(t_total_manipulador, t_total_soldadores)
-    
-    return {
-        "Ciclo Final": tiempo_ciclo_final,
-        "Carga Manipulador": t_total_manipulador,
-        "Carga Soldadores": t_total_soldadores,
-        "Diferencia": abs(t_total_manipulador - t_total_soldadores)
+    # 3. Preparar Reporte
+    datos_reporte = {
+        "proyecto": proyecto, "oem": oem, "version": "3.0", 
+        "factor_ia": factor_ia, "t_ciclo": res_f1['t_ciclo'],
+        "saturacion": sat * 100, "n_mod": n_mod
     }
-
-# --- EJECUCIÓN Y MOSTRAR RESULTADOS ---
-
-if st.button("CALCULAR TIEMPO DE CICLO"):
-    res = calcular_tiempo_v132(tuercas, tuckers, marcado, spw, mastico_mm, tox, roll_hemming_mm)
+    pptx_bytes = generar_reporte_pptx(datos_reporte, img_p)
     
-    st.divider()
-    c1, c2, c3 = st.columns(3)
-    c1.metric("TIEMPO DE CICLO FINAL", f"{res['Ciclo Final']:.2f} s")
-    c2.metric("Uso Robot Manipulador", f"{res['Carga Manipulador']:.1f} s")
-    c3.metric("Uso Robots Soldadores", f"{res['Carga Soldadores']:.1f} s")
-
-    # Explicación del cuello de botella
-    if res['Carga Manipulador'] > res['Carga Soldadores']:
-        st.info("⚠️ El cuello de botella está en el **Robot Manipulador** (Carga/Tuercas/Marcado).")
-    else:
-        st.info("🤖 El cuello de botella está en los **Robots Soldadores** (Uniones/Proceso).")
-
-    # Tabla técnica de salidas para tu Excel
-    st.subheader("Salidas Estimadas")
-    salidas = {
-        "Parámetro": ["CELDA 1-TIEMPO DE CICLO", "CUELLO DE BOTELLA", "CAMBIO HERRAMIENTA", "PINZAS/GARRAS"],
-        "Valor": [f"{res['Ciclo Final']:.2f} s", 
-                  "Manipulador" if res['Carga Manipulador'] > res['Carga Soldadores'] else "Soldadores",
-                  "SÍ" if (mastico_mm > 0 or tox > 0) else "NO",
-                  "1 Garra / 3 Pinzas" if mastico_mm > 0 else "4 Pinzas"]
-    }
-    st.table(pd.DataFrame(salidas))
-    
+    st.download_button("📥 DESCARGAR REPORTE GESTAMP", pptx_bytes, f"Oferta_{proyecto}.pptx")

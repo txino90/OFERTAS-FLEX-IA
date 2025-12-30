@@ -1,0 +1,17 @@
+{
+    "variables_entrada": [
+        "Peso",
+        "ANCHO ASSY",
+        "SPW"
+    ],
+    "variable_salida": "Tiempo_Real_Ofertado",
+    "coeficientes": {
+        "Peso": 0.2974942828481548,
+        "ANCHO ASSY": 0.015139443157321901,
+        "SPW": 0.25481965620590835
+    },
+    "r2_score": 0.7045920780867361,
+    "rmse": 14.797173774816299,
+    "mae": 11.021487260903815,
+    "intercept": 131.62802047242894
+}
