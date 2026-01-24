@@ -1,4 +1,4 @@
-name: Build Windows Executable
+name: Build Desktop Executable
 
 on:
   push:
@@ -7,13 +7,16 @@ on:
     branches: [ main ]
   release:
     types: [created]
+  workflow_dispatch:  # Permite ejecutar manualmente
 
 jobs:
-  build:
+  build-windows:
+    name: Build Windows Executable
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -28,13 +31,23 @@ jobs:
     
     - name: Build executable with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --name="CycleTimeEstimator" src/main.py
+        pyinstaller --onefile --windowed --name="GestampEstimador" ^
+          --add-data="base_datos_experta.csv;." ^
+          --add-data="base_datos_limpia.csv;." ^
+          --add-data="config_modelo.json;." ^
+          --add-data="modelo_regresion.pkl;." ^
+          --hidden-import=PIL ^
+          --hidden-import=PIL._tkinter_finder ^
+          --hidden-import=matplotlib.backends.backend_tkagg ^
+          --collect-all matplotlib ^
+          --collect-all sklearn ^
+          src/main.py
     
-    - name: Upload artifact
+    - name: Upload Windows artifact
       uses: actions/upload-artifact@v3
       with:
-        name: CycleTimeEstimator-Windows
-        path: dist/CycleTimeEstimator.exe
+        name: GestampEstimador-Windows
+        path: dist/GestampEstimador.exe
     
     # Solo en releases, subir el ejecutable
     - name: Upload Release Asset
@@ -44,6 +57,62 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: dist/CycleTimeEstimator.exe
-        asset_name: CycleTimeEstimator.exe
+        asset_path: dist/GestampEstimador.exe
+        asset_name: GestampEstimador-Windows.exe
+        asset_content_type: application/octet-stream
+
+  build-linux:
+    name: Build Linux Executable
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-tk
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --onefile --windowed --name="GestampEstimador" \
+          --add-data="base_datos_experta.csv:." \
+          --add-data="base_datos_limpia.csv:." \
+          --add-data="config_modelo.json:." \
+          --add-data="modelo_regresion.pkl:." \
+          --hidden-import=PIL \
+          --hidden-import=PIL._tkinter_finder \
+          --hidden-import=matplotlib.backends.backend_tkagg \
+          --collect-all matplotlib \
+          --collect-all sklearn \
+          src/main.py
+    
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: GestampEstimador-Linux
+        path: dist/GestampEstimador
+    
+    # Solo en releases, subir el ejecutable
+    - name: Upload Release Asset
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: dist/GestampEstimador
+        asset_name: GestampEstimador-Linux
         asset_content_type: application/octet-stream
